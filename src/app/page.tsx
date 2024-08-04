@@ -30,6 +30,7 @@ const ImageUploadDisplay: React.FC = () => {
   const [sliderValue, setSliderValue] = useState(3);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewGifUrl, setPreviewGifUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -165,6 +166,7 @@ const ImageUploadDisplay: React.FC = () => {
   };
 
   const handlePreviewGif = async () => {
+    setIsLoading(true)
     try {
       const gifUrl = await createGif(true);
       if (!gifUrl) {
@@ -174,9 +176,11 @@ const ImageUploadDisplay: React.FC = () => {
     } catch (error) {
       console.error('Failed to create preview GIF:', error);
     }
+    setIsLoading(false)
   };
 
   const handleExportGif = async () => {
+    setIsLoading(true)
     try {
       const gifUrl = await createGif(false);
       const link = document.createElement('a');
@@ -188,6 +192,7 @@ const ImageUploadDisplay: React.FC = () => {
     } catch (error) {
       console.error('Failed to export GIF:', error);
     }
+    setIsLoading(false)
   };
 
 
@@ -216,6 +221,7 @@ const ImageUploadDisplay: React.FC = () => {
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue
+              defaultValue={transitionEffect}
               placeholder="Select effect"
               className="outline-none focus:outline-none"
             />
@@ -314,8 +320,8 @@ const ImageUploadDisplay: React.FC = () => {
       )}
 
       <div className="w-full flex justify-around mt-4">
-        <Button onClick={handlePreviewGif} disabled={images.length <= 0}>Preview Gif</Button>
-        <Button onClick={handleExportGif} disabled={images.length <= 0}>Export Gif</Button>
+        <Button onClick={handlePreviewGif} disabled={images.length <= 0 || isLoading}>Preview Gif</Button>
+        <Button onClick={handleExportGif} disabled={images.length <= 0 || isLoading}>Export Gif</Button>
       </div>
     </Card>
 
