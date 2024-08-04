@@ -16,6 +16,8 @@
     "@radix-ui/react-slot": "^1.1.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "gif.js": "^0.2.0",
+    "gifshot": "^0.4.5",
     "lucide-react": "^0.424.0",
     "next": "14.2.5",
     "react": "^18",
@@ -25,6 +27,7 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@types/gif.js": "^0.2.5",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-beautiful-dnd": "^13.1.8",

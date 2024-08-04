@@ -97,8 +97,8 @@ const ImageUploadDisplay: React.FC = () => {
     };
 
     const frames: string[] = [];
-    const transitionFrameCount = 10; 
-    const fps = 10; 
+    const transitionFrameCount = 10; // 10 frames per second for transition
+    const fps = 10; // Frames per second for the entire GIF
 
     for (let i = 0; i < images.length; i++) {
       const currentImage = await loadImage(images[i]);
@@ -109,11 +109,13 @@ const ImageUploadDisplay: React.FC = () => {
         canvas.height = currentImage.height;
       }
 
+      // Add frames for the current image display
       for (let j = 0; j < (sliderValue - 1) * fps; j++) {
         ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
         frames.push(canvas.toDataURL());
       }
 
+      // Add frames for the transition effect
       for (let j = 0; j < transitionFrameCount; j++) {
         const progress = j / (transitionFrameCount - 1);
         applyTransitionEffect(ctx, currentImage, nextImage, progress);
