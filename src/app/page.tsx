@@ -20,6 +20,8 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 // @ts-ignore
 import gifshot from 'gifshot';
+import { Progress } from "@/components/ui/progress";
+import imageCompression from 'browser-image-compression';
 
 type TransitionEffect = "normal" | "fade-in" | "fade-out";
 
@@ -31,12 +33,42 @@ const ImageUploadDisplay: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewGifUrl, setPreviewGifUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false)
+  const [progress, setProgress] = useState(0);
+  const [imageLoading, setImageLoading] = useState(false)
 
-  const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+  const compressImage = async (file: File): Promise<string> => {
+    const options = {
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+    };
+
+    try {
+      const compressedFile = await imageCompression(file, options);
+      return URL.createObjectURL(compressedFile);
+    } catch (error) {
+      console.error("Error compressing image:", error);
+      return URL.createObjectURL(file);
+    }
+  };
+
+  const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
+      setImageLoading(true)
       const files = Array.from(e.target.files);
-      const newImages = files.map((file) => URL.createObjectURL(file));
-      setImages((prev) => [...prev, ...newImages]);
+      setProgress(0);
+
+      const compressedImages = await Promise.all(
+        files.map(async (file, index) => {
+          const compressedImage = await compressImage(file);
+          setProgress(Math.round(((index + 1) / files.length) * 100));
+          return compressedImage;
+        })
+      );
+
+      setImages((prev) => [...prev, ...compressedImages]);
+      setProgress(0);
+      setImageLoading(false)
     }
   };
 
@@ -98,8 +130,8 @@ const ImageUploadDisplay: React.FC = () => {
     };
 
     const frames: string[] = [];
-    const transitionFrameCount = 10; 
-    const fps = 10; 
+    const transitionFrameCount = 10;
+    const fps = 10;
 
     for (let i = 0; i < images.length; i++) {
       const currentImage = await loadImage(images[i]);
@@ -143,6 +175,9 @@ const ImageUploadDisplay: React.FC = () => {
           // @ts-ignore
           progressCallback: (captureProgress) => {
             console.log('Progress:', captureProgress);
+            const roundedProgress = Math.round(captureProgress * 100);
+            console.log('Progress:', roundedProgress);
+            setProgress(roundedProgress);
           },
           // @ts-ignore
           completeCallback: (obj) => {
@@ -207,7 +242,7 @@ const ImageUploadDisplay: React.FC = () => {
           className="hidden"
           ref={fileInputRef}
         />
-        <Button onClick={triggerFileInput} className="flex items-center gap-2">
+        <Button onClick={triggerFileInput} disabled={imageLoading} className="flex items-center gap-2">
           <Camera className="h-5 w-5" />
           Upload Images
         </Button>
@@ -312,6 +347,14 @@ const ImageUploadDisplay: React.FC = () => {
           {images.length} images takes total {images.length * sliderValue} second
         </p>
       )}
+
+      {isLoading && (
+        <div className="w-full space-y-2">
+          <Label className="text-sm font-medium">Creating GIF... {progress}%</Label>
+          <Progress value={progress} className="w-full" />
+        </div>
+      )}
+
       {previewGifUrl && (
         <div className="my-4 mx-auto">
           <h3 className="text-lg font-medium mb-2">Preview:</h3>
