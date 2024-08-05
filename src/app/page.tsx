@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useRef, ChangeEvent } from "react";
+import { createCanvas, loadImage } from 'canvas';
 import {
   DragDropContext,
   Droppable,
@@ -54,6 +55,32 @@ const ImageUploadDisplay: React.FC = () => {
       console.error("Error compressing image:", error);
       return URL.createObjectURL(file);
     }
+  };
+
+  const cropImageFromMiddle = async (imageSource: string, targetWidth: number, targetHeight: number): Promise<string> => {
+    const img = await loadImage(imageSource);
+    const canvas = createCanvas(targetWidth, targetHeight);
+    const ctx = canvas.getContext('2d');
+
+    const sourceAspectRatio = img.width / img.height;
+    const targetAspectRatio = targetWidth / targetHeight;
+
+    let sourceX, sourceY, sourceWidth, sourceHeight;
+
+    if (sourceAspectRatio > targetAspectRatio) {
+      sourceHeight = img.height;
+      sourceWidth = img.height * targetAspectRatio;
+      sourceY = 0;
+      sourceX = (img.width - sourceWidth) / 2;
+    } else {
+      sourceWidth = img.width;
+      sourceHeight = img.width / targetAspectRatio;
+      sourceX = 0;
+      sourceY = (img.height - sourceHeight) / 2;
+    }
+
+    ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, targetWidth, targetHeight);
+    return canvas.toDataURL();
   };
 
   const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -160,14 +187,22 @@ const ImageUploadDisplay: React.FC = () => {
       return "";
     }
 
-    const frames = await createFrames(images);
+    const gifWidth = 400;
+    const gifHeight = 300;
+
+    // Crop each frame
+    const croppedFrames = await Promise.all(
+      images.map(image => cropImageFromMiddle(image, gifWidth, gifHeight))
+    );
+
+    const frames = await createFrames(croppedFrames);
 
     return new Promise<string>((resolve, reject) => {
       gifshot.createGIF(
         {
           images: frames,
           gifWidth: 400,
-          gifHeight: 300,
+          gifHeight: 400,
           interval: 0.1,
           progressCallback: (captureProgress: number) => {
             const roundedProgress = Math.round(captureProgress * 100);
@@ -320,9 +355,8 @@ const ImageUploadDisplay: React.FC = () => {
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
-                            className={`relative group flex-shrink-0 w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-0.667rem)] md:w-[calc(25%-0.75rem)] ${
-                              snapshot.isDragging ? "z-50" : ""
-                            }`}
+                            className={`relative group flex-shrink-0 w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-0.667rem)] md:w-[calc(25%-0.75rem)] ${snapshot.isDragging ? "z-50" : ""
+                              }`}
                             style={{
                               ...provided.draggableProps.style,
                             }}
