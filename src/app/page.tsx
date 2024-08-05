@@ -32,11 +32,11 @@ type TransitionEffect = "normal" | "fade-in" | "fade-out";
 interface ImageWithTransition {
   src: string;
   effect: TransitionEffect;
+  duration: number;
 }
 
 const ImageUploadDisplay: React.FC = () => {
   const [images, setImages] = useState<ImageWithTransition[]>([]);
-  const [sliderValue, setSliderValue] = useState(3);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewGifUrl, setPreviewGifUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -96,7 +96,7 @@ const ImageUploadDisplay: React.FC = () => {
         files.map(async (file, index) => {
           const compressedImage = await compressImage(file);
           setProgress(Math.round(((index + 1) / files.length) * 100));
-          return { src: compressedImage, effect: "normal" as TransitionEffect };
+          return { src: compressedImage, effect: "normal" as TransitionEffect, duration: 2 };
         })
       );
 
@@ -105,7 +105,6 @@ const ImageUploadDisplay: React.FC = () => {
       setImageLoading(false);
     }
   };
-
 
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
@@ -126,6 +125,12 @@ const ImageUploadDisplay: React.FC = () => {
   const updateImageEffect = (index: number, effect: TransitionEffect) => {
     setImages((prev) =>
       prev.map((img, i) => (i === index ? { ...img, effect } : img))
+    );
+  };
+
+  const updateImageDuration = (index: number, duration: number) => {
+    setImages((prev) =>
+      prev.map((img, i) => (i === index ? { ...img, duration } : img))
     );
   };
 
@@ -154,7 +159,6 @@ const ImageUploadDisplay: React.FC = () => {
     }
   };
 
-
   const createFrames = async (images: ImageWithTransition[]): Promise<string[]> => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
@@ -174,13 +178,14 @@ const ImageUploadDisplay: React.FC = () => {
       const currentImage = await loadImage(images[i].src);
       const nextImage = await loadImage(images[(i + 1) % images.length].src);
       const effect = images[i].effect;
+      const duration = images[i].duration;
 
       if (i === 0) {
         canvas.width = currentImage.width;
         canvas.height = currentImage.height;
       }
 
-      for (let j = 0; j < (sliderValue - 1) * fps; j++) {
+      for (let j = 0; j < (duration - 1) * fps; j++) {
         ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
         frames.push(canvas.toDataURL());
       }
@@ -207,7 +212,8 @@ const ImageUploadDisplay: React.FC = () => {
     const croppedImages = await Promise.all(
       images.map(async (image) => ({
         src: await cropImageFromMiddle(image.src, gifWidth, gifHeight),
-        effect: image.effect
+        effect: image.effect,
+        duration: image.duration
       }))
     );
 
@@ -243,7 +249,6 @@ const ImageUploadDisplay: React.FC = () => {
     });
   };
 
-
   const handlePreviewGif = async () => {
     setIsLoading(true);
     try {
@@ -276,7 +281,7 @@ const ImageUploadDisplay: React.FC = () => {
     setIsLoading(false);
   };
 
-  return (
+return (
     <div className="p-4 sm:p-6 md:p-8">
       <Card className="w-full max-w-6xl mx-auto my-8">
         <CardHeader>
@@ -370,8 +375,9 @@ const ImageUploadDisplay: React.FC = () => {
                           <div
                             ref={provided.innerRef}
                             {...provided.draggableProps}
-                            className={`relative group flex-shrink-0 w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-0.667rem)] md:w-[calc(25%-0.75rem)] ${snapshot.isDragging ? "z-50" : ""
-                              }`}
+                            className={`relative group flex-shrink-0 w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-0.667rem)] md:w-[calc(25%-0.75rem)] ${
+                              snapshot.isDragging ? "z-50" : ""
+                            }`}
                             style={{
                               ...provided.draggableProps.style,
                             }}
@@ -391,7 +397,7 @@ const ImageUploadDisplay: React.FC = () => {
                                 <X className="h-4 w-4" />
                               </Button>
                             </div>
-                            <div className="w-full">
+                            <div className="w-full space-y-2">
                               <Select
                                 value={image.effect}
                                 onValueChange={(value) =>
@@ -407,6 +413,23 @@ const ImageUploadDisplay: React.FC = () => {
                                   <SelectItem value="fade-out">Fade Out</SelectItem>
                                 </SelectContent>
                               </Select>
+                              <Select
+                                value={image.duration.toString()}
+                                onValueChange={(value) =>
+                                  updateImageDuration(index, parseInt(value))
+                                }
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="Select duration" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((duration) => (
+                                    <SelectItem key={duration} value={duration.toString()}>
+                                      {duration}s
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
                         )}
@@ -417,29 +440,6 @@ const ImageUploadDisplay: React.FC = () => {
                 )}
               </Droppable>
             </DragDropContext>
-          </div>
-          {/* Settings */}
-          <div className="space-y-6">
-
-
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <Label htmlFor="duration" className="text-lg font-medium">
-                  Time for each frame:
-                </Label>
-                <span className="text-sm font-medium bg-secondary text-secondary-foreground px-3 py-1 rounded-full">
-                  {sliderValue}s
-                </span>
-              </div>
-              <Slider
-                id="duration"
-                min={1}
-                max={10}
-                step={1}
-                value={[sliderValue]}
-                onValueChange={(value) => setSliderValue(value[0])}
-              />
-            </div>
           </div>
 
           {/* GIF Creation */}
