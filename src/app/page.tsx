@@ -188,7 +188,7 @@ const ImageUploadDisplay: React.FC = () => {
     }
 
     const gifWidth = 400;
-    const gifHeight = 300;
+    const gifHeight = 400;
 
     // Crop each frame
     const croppedFrames = await Promise.all(
