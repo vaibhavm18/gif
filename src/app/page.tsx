@@ -29,10 +29,13 @@ import logoImage from "../../public/dlogo.png";
 
 type TransitionEffect = "normal" | "fade-in" | "fade-out";
 
+interface ImageWithTransition {
+  src: string;
+  effect: TransitionEffect;
+}
+
 const ImageUploadDisplay: React.FC = () => {
-  const [images, setImages] = useState<string[]>([]);
-  const [transitionEffect, setTransitionEffect] =
-    useState<TransitionEffect>("normal");
+  const [images, setImages] = useState<ImageWithTransition[]>([]);
   const [sliderValue, setSliderValue] = useState(3);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewGifUrl, setPreviewGifUrl] = useState<string | null>(null);
@@ -93,7 +96,7 @@ const ImageUploadDisplay: React.FC = () => {
         files.map(async (file, index) => {
           const compressedImage = await compressImage(file);
           setProgress(Math.round(((index + 1) / files.length) * 100));
-          return compressedImage;
+          return { src: compressedImage, effect: "normal" as TransitionEffect };
         })
       );
 
@@ -102,6 +105,7 @@ const ImageUploadDisplay: React.FC = () => {
       setImageLoading(false);
     }
   };
+
 
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
@@ -119,23 +123,30 @@ const ImageUploadDisplay: React.FC = () => {
     setImages(items);
   };
 
+  const updateImageEffect = (index: number, effect: TransitionEffect) => {
+    setImages((prev) =>
+      prev.map((img, i) => (i === index ? { ...img, effect } : img))
+    );
+  };
+
   const applyTransitionEffect = (
     ctx: CanvasRenderingContext2D,
     img1: HTMLImageElement,
     img2: HTMLImageElement,
-    progress: number
+    progress: number,
+    effect: TransitionEffect
   ) => {
     const width = ctx.canvas.width;
     const height = ctx.canvas.height;
 
-    if (transitionEffect === "normal") {
+    if (effect === "normal") {
       ctx.drawImage(img2, 0, 0, width, height);
-    } else if (transitionEffect === "fade-in") {
+    } else if (effect === "fade-in") {
       ctx.drawImage(img1, 0, 0, width, height);
       ctx.globalAlpha = progress;
       ctx.drawImage(img2, 0, 0, width, height);
       ctx.globalAlpha = 1;
-    } else if (transitionEffect === "fade-out") {
+    } else if (effect === "fade-out") {
       ctx.drawImage(img2, 0, 0, width, height);
       ctx.globalAlpha = 1 - progress;
       ctx.drawImage(img1, 0, 0, width, height);
@@ -143,7 +154,8 @@ const ImageUploadDisplay: React.FC = () => {
     }
   };
 
-  const createFrames = async (images: string[]): Promise<string[]> => {
+
+  const createFrames = async (images: ImageWithTransition[]): Promise<string[]> => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
     const loadImage = (src: string): Promise<HTMLImageElement> => {
@@ -159,8 +171,9 @@ const ImageUploadDisplay: React.FC = () => {
     const fps = 10;
 
     for (let i = 0; i < images.length; i++) {
-      const currentImage = await loadImage(images[i]);
-      const nextImage = await loadImage(images[(i + 1) % images.length]);
+      const currentImage = await loadImage(images[i].src);
+      const nextImage = await loadImage(images[(i + 1) % images.length].src);
+      const effect = images[i].effect;
 
       if (i === 0) {
         canvas.width = currentImage.width;
@@ -174,7 +187,7 @@ const ImageUploadDisplay: React.FC = () => {
 
       for (let j = 0; j < transitionFrameCount; j++) {
         const progress = j / (transitionFrameCount - 1);
-        applyTransitionEffect(ctx, currentImage, nextImage, progress);
+        applyTransitionEffect(ctx, currentImage, nextImage, progress, effect);
         frames.push(canvas.toDataURL());
       }
     }
@@ -191,11 +204,14 @@ const ImageUploadDisplay: React.FC = () => {
     const gifHeight = 400;
 
     // Crop each frame
-    const croppedFrames = await Promise.all(
-      images.map(image => cropImageFromMiddle(image, gifWidth, gifHeight))
+    const croppedImages = await Promise.all(
+      images.map(async (image) => ({
+        src: await cropImageFromMiddle(image.src, gifWidth, gifHeight),
+        effect: image.effect
+      }))
     );
 
-    const frames = await createFrames(croppedFrames);
+    const frames = await createFrames(croppedImages);
 
     return new Promise<string>((resolve, reject) => {
       gifshot.createGIF(
@@ -226,6 +242,7 @@ const ImageUploadDisplay: React.FC = () => {
       );
     });
   };
+
 
   const handlePreviewGif = async () => {
     setIsLoading(true);
@@ -287,7 +304,7 @@ const ImageUploadDisplay: React.FC = () => {
                   {images.length > 0 ? (
                     <div className="relative w-full h-full flex items-center justify-center">
                       <img
-                        src={images[0]}
+                        src={images[0].src}
                         alt="First uploaded image"
                         className="h-full w-full object-cover rounded-lg"
                       />
@@ -335,7 +352,6 @@ const ImageUploadDisplay: React.FC = () => {
             </div>
           </div>
 
-          {/* Image list */}
           <div className="space-y-2">
             <Label htmlFor="images" className="text-lg font-medium">
               Uploaded Images:
@@ -349,33 +365,48 @@ const ImageUploadDisplay: React.FC = () => {
                     className="flex flex-wrap justify-start items-start gap-4 w-full"
                   >
                     {images.map((image, index) => (
-                      <Draggable key={image} draggableId={image} index={index}>
+                      <Draggable key={image.src} draggableId={image.src} index={index}>
                         {(provided, snapshot) => (
                           <div
                             ref={provided.innerRef}
                             {...provided.draggableProps}
-                            {...provided.dragHandleProps}
                             className={`relative group flex-shrink-0 w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-0.667rem)] md:w-[calc(25%-0.75rem)] ${snapshot.isDragging ? "z-50" : ""
                               }`}
                             style={{
                               ...provided.draggableProps.style,
                             }}
                           >
-                            <img
-                              src={image}
-                              alt={`Uploaded image ${index + 1}`}
-                              className="w-full h-48 object-cover rounded-md"
-                            />
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => removeImage(index)}
-                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                            <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <GripVertical className="h-5 w-5 text-white" />
+                            <div className="relative mb-2" {...provided.dragHandleProps}>
+                              <img
+                                src={image.src}
+                                alt={`Uploaded image ${index + 1}`}
+                                className="w-full h-48 object-cover rounded-md"
+                              />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => removeImage(index)}
+                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 bg-opacity-40 hover:bg-opacity-100 transition-opacity"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <div className="w-full">
+                              <Select
+                                value={image.effect}
+                                onValueChange={(value) =>
+                                  updateImageEffect(index, value as TransitionEffect)
+                                }
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="Select effect" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="normal">Normal</SelectItem>
+                                  <SelectItem value="fade-in">Fade In</SelectItem>
+                                  <SelectItem value="fade-out">Fade Out</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
                         )}
@@ -387,29 +418,9 @@ const ImageUploadDisplay: React.FC = () => {
               </Droppable>
             </DragDropContext>
           </div>
-
           {/* Settings */}
           <div className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="effect" className="text-lg font-medium">Transition Effect:</Label>
-              <Select
-                onValueChange={(value) =>
-                  setTransitionEffect(value as TransitionEffect)
-                }
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue
-                    defaultValue={transitionEffect}
-                    placeholder="Select effect"
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="fade-in">Fade In</SelectItem>
-                  <SelectItem value="fade-out">Fade Out</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+
 
             <div className="space-y-3">
               <div className="flex justify-between items-center">
