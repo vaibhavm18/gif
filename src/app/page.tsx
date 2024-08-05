@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import React, { useState, useRef, ChangeEvent } from "react";
 import {
   DragDropContext,
@@ -7,8 +7,8 @@ import {
   DropResult,
 } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
-import { Camera, X, GripVertical } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Camera, X, GripVertical, Upload, Download } from "lucide-react";
+import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -23,6 +23,9 @@ import gifshot from 'gifshot';
 import { Progress } from "@/components/ui/progress";
 import imageCompression from 'browser-image-compression';
 
+// Assume you have a logo image imported
+import logoImage from "../../public/dlogo.png";
+
 type TransitionEffect = "normal" | "fade-in" | "fade-out";
 
 const ImageUploadDisplay: React.FC = () => {
@@ -32,9 +35,10 @@ const ImageUploadDisplay: React.FC = () => {
   const [sliderValue, setSliderValue] = useState(3);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewGifUrl, setPreviewGifUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [imageLoading, setImageLoading] = useState(false)
+  const [imageLoading, setImageLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const compressImage = async (file: File): Promise<string> => {
     const options = {
@@ -54,7 +58,7 @@ const ImageUploadDisplay: React.FC = () => {
 
   const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setImageLoading(true)
+      setImageLoading(true);
       const files = Array.from(e.target.files);
       setProgress(0);
 
@@ -68,18 +72,12 @@ const ImageUploadDisplay: React.FC = () => {
 
       setImages((prev) => [...prev, ...compressedImages]);
       setProgress(0);
-      setImageLoading(false)
+      setImageLoading(false);
     }
   };
 
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const triggerFileInput = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
   };
 
   const onDragEnd = (result: DropResult) => {
@@ -157,10 +155,9 @@ const ImageUploadDisplay: React.FC = () => {
     return frames;
   };
 
-
   const createGif = async (isPreview: boolean) => {
     if (images.length <= 0) {
-      return ""
+      return "";
     }
 
     const frames = await createFrames(images);
@@ -172,15 +169,11 @@ const ImageUploadDisplay: React.FC = () => {
           gifWidth: 400,
           gifHeight: 300,
           interval: 0.1,
-          // @ts-ignore
-          progressCallback: (captureProgress) => {
-            console.log('Progress:', captureProgress);
+          progressCallback: (captureProgress: number) => {
             const roundedProgress = Math.round(captureProgress * 100);
-            console.log('Progress:', roundedProgress);
             setProgress(roundedProgress);
           },
-          // @ts-ignore
-          completeCallback: (obj) => {
+          completeCallback: (obj: { error: any; image: string }) => {
             if (!obj.error) {
               resolve(obj.image);
             } else {
@@ -188,8 +181,7 @@ const ImageUploadDisplay: React.FC = () => {
             }
           },
         },
-        // @ts-ignore
-        (obj) => {
+        (obj: { error: any; image: string }) => {
           if (!obj.error) {
             resolve(obj.image);
           } else {
@@ -201,21 +193,22 @@ const ImageUploadDisplay: React.FC = () => {
   };
 
   const handlePreviewGif = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
       const gifUrl = await createGif(true);
       if (!gifUrl) {
-        throw new Error("Please provide images")
+        throw new Error("Please provide images");
       }
       setPreviewGifUrl(gifUrl);
     } catch (error) {
       console.error('Failed to create preview GIF:', error);
+      setError('Failed to create preview GIF. Please try again.');
     }
-    setIsLoading(false)
+    setIsLoading(false);
   };
 
   const handleExportGif = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
       const gifUrl = await createGif(false);
       const link = document.createElement('a');
@@ -226,148 +219,212 @@ const ImageUploadDisplay: React.FC = () => {
       document.body.removeChild(link);
     } catch (error) {
       console.error('Failed to export GIF:', error);
+      setError('Failed to export GIF. Please try again.');
     }
-    setIsLoading(false)
+    setIsLoading(false);
   };
 
-
   return (
-    <Card className="my-4 lg:my-8 max-w-6xl mx-auto p-4 flex flex-col justify-center gap-4">
-      <div className="mx-auto">
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={handleImageUpload}
-          className="hidden"
-          ref={fileInputRef}
-        />
-        <Button onClick={triggerFileInput} disabled={imageLoading} className="flex items-center gap-2">
-          <Camera className="h-5 w-5" />
-          Upload Images
-        </Button>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="effect" className="text-lg font-medium">Transition Effect:</Label>
-        <Select
-          onValueChange={(value) =>
-            setTransitionEffect(value as TransitionEffect)
-          }
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue
-              defaultValue={transitionEffect}
-              placeholder="Select effect"
-              className="outline-none focus:outline-none"
+    <div className="p-4 sm:p-6 md:p-8">
+      <Card className="w-full max-w-6xl mx-auto my-8">
+        <CardHeader>
+          <div className="flex items-center space-x-4">
+            <img
+              src='dlogo.png'
+              alt="Logo"
+              className="w-16 h-16 object-contain"
             />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="normal">Normal</SelectItem>
-            <SelectItem value="fade-in">Fade In</SelectItem>
-            <SelectItem value="fade-out">Fade Out</SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="text-sm text-muted-foreground">
-          Select a transition effect
-        </p>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="rotation" className="text-lg font-medium">
-          Images:
-        </Label>
-        <DragDropContext onDragEnd={onDragEnd}>
-          <Droppable droppableId="images" direction="horizontal">
-            {(provided) => (
-              <div
-                {...provided.droppableProps}
-                ref={provided.innerRef}
-                className="flex flex-wrap justify-start items-start gap-4 w-full"
+            <CardTitle className="text-2xl font-bold">
+              GIF Creator
+            </CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-12 w-full">
+          {/* File upload section */}
+          <div className="mb-12">
+            <h2 className="text-xl font-semibold mb-6">Upload Images</h2>
+            <div className="flex flex-col md:flex-row gap-8">
+              <div className="flex-1 flex flex-col gap-6">
+                <p className="text-sm">
+                  Upload images to create a GIF.
+                </p>
+                <div className="w-full h-40 bg-gray-100 rounded-lg flex-1 flex items-center justify-center min-h-40">
+                  {images.length > 0 ? (
+                    <div className="relative w-full h-full flex items-center justify-center">
+                      <img
+                        src={images[0]}
+                        alt="First uploaded image"
+                        className="h-full w-full object-cover rounded-lg"
+                      />
+                      <p className="text-sm mt-2 absolute bottom-2 left-2 bg-white px-2 py-1 rounded">
+                        {images.length} images uploaded
+                      </p>
+                    </div>
+                  ) : (
+                    <Camera className="h-16 w-16 text-gray-400" />
+                  )}
+                </div>
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full text-sm"
+                  variant="outline"
+                  disabled={imageLoading}
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  Choose Images
+                </Button>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageUpload}
+                  className="hidden"
+                  ref={fileInputRef}
+                />
+              </div>
+              {previewGifUrl && (
+                <div className="flex-1 flex flex-col gap-6">
+                  <h3 className="text-lg font-medium">Preview GIF</h3>
+                  <div className="relative w-full h-40 flex-1 flex items-center justify-center bg-gray-100 rounded-lg">
+                    <img src={previewGifUrl} alt="Preview GIF" className="max-w-full h-auto rounded-lg" />
+                  </div>
+                  <Button
+                    onClick={handleExportGif}
+                    className="w-full text-sm"
+                    disabled={isLoading}
+                  >
+                    <Download className="mr-2 h-4 w-4" /> Export GIF
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Image list */}
+          <div className="space-y-2">
+            <Label htmlFor="images" className="text-lg font-medium">
+              Uploaded Images:
+            </Label>
+            <DragDropContext onDragEnd={onDragEnd}>
+              <Droppable droppableId="images" direction="horizontal">
+                {(provided) => (
+                  <div
+                    {...provided.droppableProps}
+                    ref={provided.innerRef}
+                    className="flex flex-wrap justify-start items-start gap-4 w-full"
+                  >
+                    {images.map((image, index) => (
+                      <Draggable key={image} draggableId={image} index={index}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                            className={`relative group flex-shrink-0 w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-0.667rem)] md:w-[calc(25%-0.75rem)] ${
+                              snapshot.isDragging ? "z-50" : ""
+                            }`}
+                            style={{
+                              ...provided.draggableProps.style,
+                            }}
+                          >
+                            <img
+                              src={image}
+                              alt={`Uploaded image ${index + 1}`}
+                              className="w-full h-48 object-cover rounded-md"
+                            />
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => removeImage(index)}
+                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                            <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <GripVertical className="h-5 w-5 text-white" />
+                            </div>
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
+          </div>
+
+          {/* Settings */}
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="effect" className="text-lg font-medium">Transition Effect:</Label>
+              <Select
+                onValueChange={(value) =>
+                  setTransitionEffect(value as TransitionEffect)
+                }
               >
-                {images.map((image, index) => (
-                  <Draggable key={image} draggableId={image} index={index}>
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        {...provided.dragHandleProps}
-                        className={`relative group flex-shrink-0 w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-0.667rem)] md:w-[calc(25%-0.75rem)] ${snapshot.isDragging ? "z-50" : ""
-                          }`}
-                        style={{
-                          ...provided.draggableProps.style,
-                        }}
-                      >
-                        <img
-                          src={image}
-                          alt={`Uploaded image ${index + 1}`}
-                          className="w-full h-48 object-cover rounded-md"
-                        />
-                        <span
-                          className="absolute top-2 right-2 bg-gray-50 opacity-0 p-1 rounded-full group-hover:opacity-100 transition-opacity"
-                          onClick={() => removeImage(index)}
-                        >
-                          <X className="h-4 w-4" />
-                        </span>
-                        <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <GripVertical className="h-5 w-5 text-white" />
-                        </div>
-                      </div>
-                    )}
-                  </Draggable>
-                ))}
-                {provided.placeholder}
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue
+                    defaultValue={transitionEffect}
+                    placeholder="Select effect"
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Normal</SelectItem>
+                  <SelectItem value="fade-in">Fade In</SelectItem>
+                  <SelectItem value="fade-out">Fade Out</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label htmlFor="duration" className="text-lg font-medium">
+                  Time for each frame:
+                </Label>
+                <span className="text-sm font-medium bg-secondary text-secondary-foreground px-3 py-1 rounded-full">
+                  {sliderValue}s
+                </span>
+              </div>
+              <Slider
+                id="duration"
+                min={1}
+                max={10}
+                step={1}
+                value={[sliderValue]}
+                onValueChange={(value) => setSliderValue(value[0])}
+              />
+            </div>
+          </div>
+
+          {/* GIF Creation */}
+          <div className="flex flex-col gap-4">
+            {isLoading && (
+              <div className="w-full space-y-2">
+                <Label className="text-sm font-medium">Creating GIF... {progress}%</Label>
+                <Progress value={progress} className="w-full" />
               </div>
             )}
-          </Droppable>
-        </DragDropContext>
-      </div>
-      <div className="space-y-3">
-        <div className="flex justify-between items-center">
-          <Label htmlFor="rotation" className="text-lg font-medium">
-            Time for each frame:
-          </Label>
-          <span className="text-sm font-medium bg-secondary text-secondary-foreground px-3 py-1 rounded-full">
-            {sliderValue}
-          </span>
-        </div>
-        <Slider
-          id="slider-value"
-          min={1}
-          max={10}
-          step={1}
-          value={[sliderValue]}
-          onValueChange={(value) => setSliderValue(value[0])}
-          className=""
-        />
-        <p className="text-sm text-muted-foreground">
-          Time frame for each image
-        </p>
-      </div>
-      {images.length > 0 && (
-        <p className="text-lg">
-          {images.length} images takes total {images.length * sliderValue} second
-        </p>
-      )}
 
-      {isLoading && (
-        <div className="w-full space-y-2">
-          <Label className="text-sm font-medium">Creating GIF... {progress}%</Label>
-          <Progress value={progress} className="w-full" />
-        </div>
-      )}
+            <div className="flex justify-center">
+              <Button
+                onClick={handlePreviewGif}
+                className="px-8 py-4 text-lg font-semibold"
+                disabled={images.length <= 0 || isLoading}
+              >
+                {isLoading ? "Creating..." : "Create GIF"}
+              </Button>
+            </div>
+          </div>
 
-      {previewGifUrl && (
-        <div className="my-4 mx-auto">
-          <h3 className="text-lg font-medium mb-2">Preview:</h3>
-          <img src={previewGifUrl} alt="Preview GIF" className="max-w-full h-auto rounded-xl" />
-        </div>
-      )}
-
-      <div className="w-full flex justify-around mt-4">
-        <Button onClick={handlePreviewGif} disabled={images.length <= 0 || isLoading}>Preview Gif</Button>
-        <Button onClick={handleExportGif} disabled={images.length <= 0 || isLoading}>Export Gif</Button>
-      </div>
-    </Card>
-
+          {error && (
+            <div className="mt-8 text-red-500">
+              <p>{error}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
