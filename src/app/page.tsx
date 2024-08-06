@@ -10,31 +10,35 @@ import {
 import { Button } from "@/components/ui/button";
 import { Camera, X, GripVertical, Upload, Download } from "lucide-react";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 // @ts-ignore
 import gifshot from 'gifshot';
 import { Progress } from "@/components/ui/progress";
 import imageCompression from 'browser-image-compression';
 
-// Assume you have a logo image imported
-import logoImage from "../../public/dlogo.png";
+import TextStyleDialog from "@/components/TextStyle";
 
 type TransitionEffect = "normal" | "fade-in" | "fade-out";
+
+interface TextStyleOptions {
+  fontSize: number;
+  fontWeight: string;
+  fontFamily: string;
+  fillStyle: string;
+  strokeStyle: string;
+  textAlign: CanvasTextAlign;
+  textBaseline: CanvasTextBaseline;
+}
 
 interface ImageWithTransition {
   src: string;
   effect: TransitionEffect;
   duration: number;
   text: string;
+  textStyle: TextStyleOptions;
 }
+
 
 const ImageUploadDisplay: React.FC = () => {
   const [images, setImages] = useState<ImageWithTransition[]>([]);
@@ -44,6 +48,40 @@ const ImageUploadDisplay: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [imageLoading, setImageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const defaultTextStyle: TextStyleOptions = {
+    fontSize: 20,
+    fontWeight: 'bold',
+    fontFamily: 'Arial',
+    fillStyle: 'white',
+    strokeStyle: 'black',
+    textAlign: 'center',
+    textBaseline: 'bottom',
+  };
+
+  const updateImageEffect = (index: number, effect: TransitionEffect) => {
+    setImages((prev) =>
+      prev.map((img, i) => (i === index ? { ...img, effect } : img))
+    );
+  };
+
+  const updateImageDuration = (index: number, duration: number) => {
+    setImages((prev) =>
+      prev.map((img, i) => (i === index ? { ...img, duration } : img))
+    );
+  };
+
+  const updateImageText = (index: number, text: string) => {
+    setImages((prev) =>
+      prev.map((img, i) => (i === index ? { ...img, text } : img))
+    );
+  };
+
+  const updateImageTextStyle = (index: number, textStyle: Partial<TextStyleOptions>) => {
+    setImages((prev) =>
+      prev.map((img, i) => (i === index ? { ...img, textStyle: { ...img.textStyle, ...textStyle } } : img))
+    );
+  };
 
   const compressImage = async (file: File): Promise<string> => {
     const options = {
@@ -61,20 +99,14 @@ const ImageUploadDisplay: React.FC = () => {
     }
   };
 
-  const updateImageText = (index: number, text: string) => {
-    setImages((prev) =>
-      prev.map((img, i) => (i === index ? { ...img, text } : img))
-    );
-  };
-
-  const addTextToImage = (ctx: CanvasRenderingContext2D, text: string) => {
-    const fontSize = Math.floor(ctx.canvas.width / 20);
-    ctx.font = `bold ${fontSize}px Arial`;
-    ctx.fillStyle = 'white';
-    ctx.strokeStyle = 'black';
+  const addTextToImage = (ctx: CanvasRenderingContext2D, text: string, style: TextStyleOptions) => {
+    const { fontSize, fontWeight, fontFamily, fillStyle, strokeStyle, textAlign, textBaseline } = style;
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    ctx.fillStyle = fillStyle;
+    ctx.strokeStyle = strokeStyle;
     ctx.lineWidth = fontSize / 8;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
+    ctx.textAlign = textAlign;
+    ctx.textBaseline = textBaseline;
 
     const maxWidth = ctx.canvas.width * 0.9;
     const words = text.split(' ');
@@ -104,6 +136,31 @@ const ImageUploadDisplay: React.FC = () => {
     });
   };
 
+  const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setImageLoading(true);
+      const files = Array.from(e.target.files);
+      setProgress(0);
+
+      const compressedImages = await Promise.all(
+        files.map(async (file, index) => {
+          const compressedImage = await compressImage(file);
+          setProgress(Math.round(((index + 1) / files.length) * 100));
+          return {
+            src: compressedImage,
+            effect: "normal" as TransitionEffect,
+            duration: 2,
+            text: "",
+            textStyle: { ...defaultTextStyle }
+          };
+        })
+      );
+
+      setImages((prev) => [...prev, ...compressedImages]);
+      setProgress(0);
+      setImageLoading(false);
+    }
+  };
 
   const cropImageFromMiddle = async (imageSource: string, targetWidth: number, targetHeight: number): Promise<string> => {
     const img = await loadImage(imageSource);
@@ -131,26 +188,6 @@ const ImageUploadDisplay: React.FC = () => {
     return canvas.toDataURL();
   };
 
-  const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setImageLoading(true);
-      const files = Array.from(e.target.files);
-      setProgress(0);
-
-      const compressedImages = await Promise.all(
-        files.map(async (file, index) => {
-          const compressedImage = await compressImage(file);
-          setProgress(Math.round(((index + 1) / files.length) * 100));
-          return { src: compressedImage, effect: "normal" as TransitionEffect, duration: 2, text: "" };
-        })
-      );
-
-      setImages((prev) => [...prev, ...compressedImages]);
-      setProgress(0);
-      setImageLoading(false);
-    }
-  };
-
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
@@ -165,18 +202,6 @@ const ImageUploadDisplay: React.FC = () => {
     items.splice(result.destination.index, 0, reorderedItem);
 
     setImages(items);
-  };
-
-  const updateImageEffect = (index: number, effect: TransitionEffect) => {
-    setImages((prev) =>
-      prev.map((img, i) => (i === index ? { ...img, effect } : img))
-    );
-  };
-
-  const updateImageDuration = (index: number, duration: number) => {
-    setImages((prev) =>
-      prev.map((img, i) => (i === index ? { ...img, duration } : img))
-    );
   };
 
   const applyTransitionEffect = (
@@ -216,7 +241,7 @@ const ImageUploadDisplay: React.FC = () => {
     };
 
     const frames: string[] = [];
-    const transitionFrameCount = 10;
+    const transitionFrameCount = 3;
     const fps = 10;
 
     for (let i = 0; i < images.length; i++) {
@@ -235,7 +260,7 @@ const ImageUploadDisplay: React.FC = () => {
       for (let j = 0; j < (duration - 1) * fps; j++) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
-        addTextToImage(ctx, text);
+        addTextToImage(ctx, text, images[i].textStyle);
         frames.push(canvas.toDataURL());
       }
 
@@ -249,7 +274,7 @@ const ImageUploadDisplay: React.FC = () => {
         const textAlpha = 1 - progress;
         ctx.save();
         ctx.globalAlpha = textAlpha;
-        addTextToImage(ctx, text);
+        addTextToImage(ctx, text, images[i].textStyle);
         ctx.restore();
 
         frames.push(canvas.toDataURL());
@@ -258,7 +283,6 @@ const ImageUploadDisplay: React.FC = () => {
 
     return frames;
   };
-
   const createGif = async (isPreview: boolean) => {
     if (images.length <= 0) {
       return "";
@@ -273,7 +297,8 @@ const ImageUploadDisplay: React.FC = () => {
         src: await cropImageFromMiddle(image.src, gifWidth, gifHeight),
         effect: image.effect,
         duration: image.duration,
-        text: image.text
+        text: image.text,
+        textStyle: image.textStyle
       }))
     );
 
@@ -417,6 +442,7 @@ const ImageUploadDisplay: React.FC = () => {
             </div>
           </div>
 
+
           <div className="space-y-2">
             <Label htmlFor="images" className="text-lg font-medium">
               Uploaded Images:
@@ -457,45 +483,23 @@ const ImageUploadDisplay: React.FC = () => {
                               </Button>
                             </div>
                             <div className="w-full space-y-2">
-                              <Select
-                                value={image.effect}
-                                onValueChange={(value) =>
-                                  updateImageEffect(index, value as TransitionEffect)
-                                }
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue placeholder="Select effect" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="normal">Normal</SelectItem>
-                                  <SelectItem value="fade-in">Fade In</SelectItem>
-                                  <SelectItem value="fade-out">Fade Out</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <Select
-                                value={image.duration.toString()}
-                                onValueChange={(value) =>
-                                  updateImageDuration(index, parseInt(value))
-                                }
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue placeholder="Select duration" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((duration) => (
-                                    <SelectItem key={duration} value={duration.toString()}>
-                                      {duration}s
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <input
-                                type="text"
-                                placeholder="Add text to image"
-                                value={image.text}
-                                onChange={(e) => updateImageText(index, e.target.value)}
-                                className="w-full p-2 border rounded"
-                              />
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button size="sm" className="w-full">
+                                    Edit Style
+                                  </Button>
+                                </DialogTrigger>
+                                <TextStyleDialog
+                                  text={image.text}
+                                  onTextChange={(text) => updateImageText(index, text)}
+                                  textStyleOptions={image.textStyle}
+                                  effect={image.effect}
+                                  duration={image.duration}
+                                  onTextStyleChange={(key, value) => updateImageTextStyle(index, { [key]: value })}
+                                  onEffectChange={(value) => updateImageEffect(index, value)}
+                                  onDurationChange={(value) => updateImageDuration(index, value)}
+                                />
+                              </Dialog>
                             </div>
                           </div>
                         )}
