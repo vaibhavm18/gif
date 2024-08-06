@@ -33,6 +33,7 @@ interface ImageWithTransition {
   src: string;
   effect: TransitionEffect;
   duration: number;
+  text: string;
 }
 
 const ImageUploadDisplay: React.FC = () => {
@@ -59,6 +60,50 @@ const ImageUploadDisplay: React.FC = () => {
       return URL.createObjectURL(file);
     }
   };
+
+  const updateImageText = (index: number, text: string) => {
+    setImages((prev) =>
+      prev.map((img, i) => (i === index ? { ...img, text } : img))
+    );
+  };
+
+  const addTextToImage = (ctx: CanvasRenderingContext2D, text: string) => {
+    const fontSize = Math.floor(ctx.canvas.width / 20);
+    ctx.font = `bold ${fontSize}px Arial`;
+    ctx.fillStyle = 'white';
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = fontSize / 8;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+
+    const maxWidth = ctx.canvas.width * 0.9;
+    const words = text.split(' ');
+    let line = '';
+    const lines: string[] = [];
+
+    for (let i = 0; i < words.length; i++) {
+      const testLine = line + words[i] + ' ';
+      const metrics = ctx.measureText(testLine);
+      const testWidth = metrics.width;
+      if (testWidth > maxWidth && i > 0) {
+        lines.push(line);
+        line = words[i] + ' ';
+      } else {
+        line = testLine;
+      }
+    }
+    lines.push(line);
+
+    const lineHeight = fontSize * 1.2;
+    let y = ctx.canvas.height - 20;
+
+    lines.reverse().forEach((line) => {
+      ctx.strokeText(line, ctx.canvas.width / 2, y, maxWidth);
+      ctx.fillText(line, ctx.canvas.width / 2, y, maxWidth);
+      y -= lineHeight;
+    });
+  };
+
 
   const cropImageFromMiddle = async (imageSource: string, targetWidth: number, targetHeight: number): Promise<string> => {
     const img = await loadImage(imageSource);
@@ -96,7 +141,7 @@ const ImageUploadDisplay: React.FC = () => {
         files.map(async (file, index) => {
           const compressedImage = await compressImage(file);
           setProgress(Math.round(((index + 1) / files.length) * 100));
-          return { src: compressedImage, effect: "normal" as TransitionEffect, duration: 2 };
+          return { src: compressedImage, effect: "normal" as TransitionEffect, duration: 2, text: "" };
         })
       );
 
@@ -179,20 +224,34 @@ const ImageUploadDisplay: React.FC = () => {
       const nextImage = await loadImage(images[(i + 1) % images.length].src);
       const effect = images[i].effect;
       const duration = images[i].duration;
+      const text = images[i].text;
 
       if (i === 0) {
         canvas.width = currentImage.width;
         canvas.height = currentImage.height;
       }
 
+      // Frames for current image duration
       for (let j = 0; j < (duration - 1) * fps; j++) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
+        addTextToImage(ctx, text);
         frames.push(canvas.toDataURL());
       }
 
+      // Transition frames
       for (let j = 0; j < transitionFrameCount; j++) {
         const progress = j / (transitionFrameCount - 1);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         applyTransitionEffect(ctx, currentImage, nextImage, progress, effect);
+
+        // Fade out text during transition
+        const textAlpha = 1 - progress;
+        ctx.save();
+        ctx.globalAlpha = textAlpha;
+        addTextToImage(ctx, text);
+        ctx.restore();
+
         frames.push(canvas.toDataURL());
       }
     }
@@ -213,7 +272,8 @@ const ImageUploadDisplay: React.FC = () => {
       images.map(async (image) => ({
         src: await cropImageFromMiddle(image.src, gifWidth, gifHeight),
         effect: image.effect,
-        duration: image.duration
+        duration: image.duration,
+        text: image.text
       }))
     );
 
@@ -281,7 +341,7 @@ const ImageUploadDisplay: React.FC = () => {
     setIsLoading(false);
   };
 
-return (
+  return (
     <div className="p-4 sm:p-6 md:p-8">
       <Card className="w-full max-w-6xl mx-auto my-8">
         <CardHeader>
@@ -375,9 +435,8 @@ return (
                           <div
                             ref={provided.innerRef}
                             {...provided.draggableProps}
-                            className={`relative group flex-shrink-0 w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-0.667rem)] md:w-[calc(25%-0.75rem)] ${
-                              snapshot.isDragging ? "z-50" : ""
-                            }`}
+                            className={`relative group flex-shrink-0 w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-0.667rem)] md:w-[calc(25%-0.75rem)] ${snapshot.isDragging ? "z-50" : ""
+                              }`}
                             style={{
                               ...provided.draggableProps.style,
                             }}
@@ -430,6 +489,13 @@ return (
                                   ))}
                                 </SelectContent>
                               </Select>
+                              <input
+                                type="text"
+                                placeholder="Add text to image"
+                                value={image.text}
+                                onChange={(e) => updateImageText(index, e.target.value)}
+                                className="w-full p-2 border rounded"
+                              />
                             </div>
                           </div>
                         )}
