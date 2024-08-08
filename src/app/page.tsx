@@ -42,6 +42,7 @@ interface ImageWithTransition {
 
 const ImageUploadDisplay: React.FC = () => {
   const [images, setImages] = useState<ImageWithTransition[]>([]);
+  const [smallestDimensions, setSmallestDimensions] = useState({ width: 800, height: 800 });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewGifUrl, setPreviewGifUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -90,13 +91,30 @@ const ImageUploadDisplay: React.FC = () => {
       useWebWorker: true,
     };
 
+    let url = ""
+    let width = 0;
+    let height = 0
+
     try {
       const compressedFile = await imageCompression(file, options);
-      return URL.createObjectURL(compressedFile);
+      url = URL.createObjectURL(compressedFile);
+      const img = await loadImage(url)
+      width = img.width
+      height = img.height
     } catch (error) {
       console.error("Error compressing image:", error);
-      return URL.createObjectURL(file);
+      url = URL.createObjectURL(file)
+      const img = await loadImage(url)
+      width = img.width
+      height = img.height
     }
+
+    setSmallestDimensions(prev => ({
+      height: Math.min(height, prev.height),
+      width: Math.min(width, prev.width)
+    }))
+
+    return url
   };
 
   const addTextToImage = (ctx: CanvasRenderingContext2D, text: string, style: TextStyleOptions) => {
@@ -288,8 +306,8 @@ const ImageUploadDisplay: React.FC = () => {
       return "";
     }
 
-    const gifWidth = 400;
-    const gifHeight = 400;
+    const gifWidth = smallestDimensions.width;
+    const gifHeight = smallestDimensions.height;
 
     // Crop each frame
     const croppedImages = await Promise.all(
